@@ -1,5 +1,6 @@
 """The module.
 """
+from functools import reduce
 from typing import List, Callable, Any
 from needle.autograd import Tensor
 from needle import ops
@@ -106,14 +107,18 @@ class Linear(Module):
 class Flatten(Module):
     def forward(self, X):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        if len(X.shape) <= 2:
+            return X
+        batch_size = X.shape[0]
+        feature_dim = reduce(lambda base, x: base * x, X.shape[1:], 1)
+        return ops.reshape(X, shape=(batch_size, feature_dim))
         ### END YOUR SOLUTION
 
 
 class ReLU(Module):
     def forward(self, x: Tensor) -> Tensor:
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        return ops.relu(x)
         ### END YOUR SOLUTION
 
 class Sequential(Module):
@@ -123,7 +128,10 @@ class Sequential(Module):
 
     def forward(self, x: Tensor) -> Tensor:
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        out = x
+        for module in self.modules:
+            out = module(out)
+        return out
         ### END YOUR SOLUTION
 
 
