@@ -1,7 +1,7 @@
 """Core data structures."""
 import needle
 from .backend_numpy import Device, cpu, all_devices
-from typing import List, Optional, NamedTuple, Tuple, Union
+from typing import List, Set, Optional, NamedTuple, Tuple, Union, Dict
 from collections import namedtuple
 import numpy
 
@@ -358,7 +358,6 @@ class Tensor(Value):
     def transpose(self, axes=None):
         return needle.ops.Transpose(axes)(self)
 
-
     __radd__ = __add__
     __rmul__ = __mul__
 
@@ -380,7 +379,25 @@ def compute_gradient_of_variables(output_tensor, out_grad):
     reverse_topo_order = list(reversed(find_topo_sort([output_tensor])))
 
     ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
+    for cur_node in reverse_topo_order:
+        # sum current node gradient which is corresponding to loss
+        cur_node_grad = sum_node_list(node_to_output_grads_list[cur_node])
+        # if required gradient: then cur_node.gradient = cur_node_grad
+        if cur_node.requires_grad:
+            cur_node.grad = cur_node_grad
+
+        # if current_node is leaf which has no inputs to operate current_node calculation result, then continue
+        if cur_node.is_leaf():
+            continue
+
+        # calculate current node to inputs gradient which is based on operation's gradient method
+        inputs_grad = cur_node.op.gradient_as_tuple(cur_node_grad, cur_node)
+
+        # now we know current node corresponding input_node and matching input_node's gradient
+        for node_in, node_in_grad in zip(cur_node.inputs, inputs_grad):
+            if node_in not in node_to_output_grads_list:
+                node_to_output_grads_list[node_in] = []
+            node_to_output_grads_list[node_in].append(node_in_grad)
     ### END YOUR SOLUTION
 
 
@@ -393,14 +410,58 @@ def find_topo_sort(node_list: List[Value]) -> List[Value]:
     sort.
     """
     ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
+    is_recursive = False
+
+    if is_recursive:
+        return topo_sort_dfs_recursive(node_list)
+    else:
+        return topo_sort_lfs_iterative(node_list)
     ### END YOUR SOLUTION
 
 
-def topo_sort_dfs(node, visited, topo_order):
+def topo_sort_lfs_iterative(node_list: List[Value]) -> List[Value]:
+    visited = set()
+    topo_order = list()
+    stack = list()
+    for start_node in node_list:
+        if start_node in visited:
+            continue
+        stack.append((start_node, False))
+        while len(stack) > 0:
+            node, processed = stack.pop()
+            if processed:
+                topo_order.append(node)
+            else:
+                if node in visited:
+                    continue
+
+                stack.append((node, True))
+                visited.add(node)
+                for next_node in node.inputs[::-1]:
+                    stack.append((next_node, False))
+    return topo_order
+
+
+def topo_sort_dfs_recursive(node_list: List[Value]) -> List[Value]:
+    visited = set()
+    topo_order = list()
+    for node in node_list:
+        if node not in visited:
+            inner_topo_sort_dfs_recursive(node, visited, topo_order)
+    return topo_order
+
+
+def inner_topo_sort_dfs_recursive(node: Value, visited: Set[Value], topo_order: List[Value]):
     """Post-order DFS"""
     ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
+    if node in visited:
+        return
+
+    visited.add(node)
+
+    for next_node in node.inputs:
+        inner_topo_sort_dfs_recursive(next_node, visited, topo_order)
+    topo_order.append(node)
     ### END YOUR SOLUTION
 
 
