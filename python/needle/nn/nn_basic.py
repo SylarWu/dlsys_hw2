@@ -1,7 +1,7 @@
 """The module.
 """
 from functools import reduce
-from typing import List, Callable, Any
+from typing import List, Callable, Any, Optional, Tuple
 from needle.autograd import Tensor
 from needle import ops
 import needle.init as init
@@ -138,9 +138,12 @@ class Sequential(Module):
 class SoftmaxLoss(Module):
     def forward(self, logits: Tensor, y: Tensor):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        batch_size, num_classes = logits.shape
+        y_one_hot = init.one_hot(num_classes, y)
+        log_sum_exp = ops.logsumexp(logits, axes=(1,))
+        activate_logits = ops.summation(ops.multiply(logits, y_one_hot), axes=(1,))
+        return ops.summation(log_sum_exp - activate_logits) / batch_size
         ### END YOUR SOLUTION
-
 
 class BatchNorm1d(Module):
     def __init__(self, dim, eps=1e-5, momentum=0.1, device=None, dtype="float32"):
@@ -149,15 +152,60 @@ class BatchNorm1d(Module):
         self.eps = eps
         self.momentum = momentum
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        self.weight = Parameter(init.ones(dim, device=device, dtype=dtype))
+        self.bias = Parameter(init.zeros(dim, device=device, dtype=dtype))
+        self.running_mean = init.zeros(dim, device=device, dtype=dtype)
+        self.running_var = init.ones(dim, device=device, dtype=dtype)
         ### END YOUR SOLUTION
 
     def forward(self, x: Tensor) -> Tensor:
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        axis = (0,)
+        match_shape = tuple([1 if i in axis else n for i, n in enumerate(x.shape)])
+
+        weight = ops.broadcast_to(ops.reshape(self.weight, match_shape), x.shape)
+        bias = ops.broadcast_to(ops.reshape(self.bias, match_shape), x.shape)
+
+        if not self.training:
+            running_mean = ops.broadcast_to(ops.reshape(self.running_mean, match_shape), x.shape)
+            running_var = ops.broadcast_to(ops.reshape(self.running_var, match_shape), x.shape)
+
+            out = (x - running_mean) / (running_var + self.eps) ** 0.5
+        else:
+            mean = _calc_mean(x, axes=axis, keep_dims=False)
+            variance = _calc_variance(x, axes=axis, keep_dims=False)
+
+            self.running_mean = ((1 - self.momentum) * self.running_mean + self.momentum * mean)
+            self.running_var = ((1 - self.momentum) * self.running_var + self.momentum * variance)
+
+            out = (weight * (x - ops.broadcast_to(ops.reshape(mean, match_shape), x.shape))
+                   /
+                   (ops.broadcast_to(ops.reshape(variance, match_shape), x.shape) + self.eps) ** 0.5 + bias)
+
+        return out
         ### END YOUR SOLUTION
 
-
+def _calc_mean(x: Tensor, axes: Optional[Tuple[int]] = None, keep_dims=True) -> Tensor:
+    axis = axes if axes is not None else tuple(range(len(x.shape)))
+    scalar = 1
+    for i in axis:
+        scalar *= x.shape[i]
+    match_shape = tuple([1 if i in axis else n for i, n in enumerate(x.shape)])
+    if keep_dims:
+        return ops.reshape(ops.summation(x, axes=axis) / scalar, match_shape)
+    else:
+        return ops.summation(x, axes=axis) / scalar
+def _calc_variance(x: Tensor, axes: Optional[Tuple[int]] = None, keep_dims=True) -> Tensor:
+    axis = axes if axes is not None else tuple(range(len(x.shape)))
+    scalar = 1
+    for i in axis:
+        scalar *= x.shape[i]
+    match_shape = tuple([1 if i in axis else n for i, n in enumerate(x.shape)])
+    mean = _calc_mean(x, axes=axes, keep_dims=True)
+    if keep_dims:
+        return ops.reshape(ops.summation((x - ops.broadcast_to(mean, x.shape)) ** 2, axes=axis) / scalar, match_shape)
+    else:
+        return ops.summation((x - ops.broadcast_to(mean, x.shape)) ** 2, axes=axis) / scalar
 
 class LayerNorm1d(Module):
     def __init__(self, dim, eps=1e-5, device=None, dtype="float32"):
@@ -165,12 +213,20 @@ class LayerNorm1d(Module):
         self.dim = dim
         self.eps = eps
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        self.weight = Parameter(init.ones(dim, device=device, dtype=dtype))
+        self.bias = Parameter(init.zeros(dim, device=device, dtype=dtype))
         ### END YOUR SOLUTION
 
     def forward(self, x: Tensor) -> Tensor:
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        assert self.dim == x.shape[-1], f"Error dimension: input dim is {x.shape[-1]} but got {self.dim}"
+        axis = (len(x.shape) - 1,)
+
+        weight = ops.broadcast_to(ops.reshape(self.weight, tuple(1 for _ in range(len(x.shape) - 1)) + (self.dim,)), x.shape)
+        bias = ops.broadcast_to(ops.reshape(self.bias, tuple(1 for _ in range(len(x.shape) - 1)) + (self.dim,)), x.shape)
+        mean = ops.broadcast_to(_calc_mean(x, axis), x.shape)
+        variance = ops.broadcast_to(_calc_variance(x, axis), x.shape)
+        return weight * ((x - mean) / ((variance + self.eps) ** 0.5)) + bias
         ### END YOUR SOLUTION
 
 
