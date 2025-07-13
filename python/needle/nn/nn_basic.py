@@ -181,7 +181,10 @@ class Dropout(Module):
 
     def forward(self, x: Tensor) -> Tensor:
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        if self.training:
+            drop_mask = init.randb(*x.shape, p=1 - self.p)
+            x = ops.divide_scalar(ops.multiply(x, drop_mask), 1 - self.p)
+        return x
         ### END YOUR SOLUTION
 
 
@@ -192,5 +195,5 @@ class Residual(Module):
 
     def forward(self, x: Tensor) -> Tensor:
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        return self.fn(x) + x
         ### END YOUR SOLUTION
