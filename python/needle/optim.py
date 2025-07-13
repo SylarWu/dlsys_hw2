@@ -25,7 +25,14 @@ class SGD(Optimizer):
 
     def step(self):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        for i, p in enumerate(self.params):
+            if i not in self.u:
+                self.u[i] = ndl.init.zeros(*p.shape, dtype=p.dtype)
+            if p.grad is None:
+                continue
+            grad = ndl.Tensor(p.grad.data + self.weight_decay * p.data, dtype=p.dtype)
+            self.u[i] = self.momentum * self.u[i] + (1 - self.momentum) * grad.data
+            p.data = p.data - self.lr * self.u[i]
         ### END YOUR SOLUTION
 
     def clip_grad_norm(self, max_norm=0.25):
@@ -60,5 +67,27 @@ class Adam(Optimizer):
 
     def step(self):
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        self.t += 1
+        for i, p in enumerate(self.params):
+            if p.grad is None:
+                continue
+
+            if i not in self.m:
+                self.m[i] = ndl.init.zeros(*p.shape, dtype=p.dtype).data
+            if i not in self.v:
+                self.v[i] = ndl.init.zeros(*p.shape, dtype=p.dtype).data
+
+            # 计算梯度（包含weight decay）
+            grad = ndl.Tensor(p.grad.data + self.weight_decay * p.data, dtype=p.dtype).data
+
+            # 更新动量
+            self.m[i].data = self.beta1 * self.m[i].data + (1 - self.beta1) * grad.data
+            self.v[i].data = self.beta2 * self.v[i].data + (1 - self.beta2) * (grad.data ** 2).data
+
+            # 偏差修正
+            m_hat = self.m[i].data / (1 - self.beta1 ** self.t)
+            v_hat = self.v[i].data / (1 - self.beta2 ** self.t)
+
+            # 更新参数
+            p.data = p.data - self.lr * (m_hat.data / (v_hat.data ** 0.5 + self.eps))
         ### END YOUR SOLUTION
