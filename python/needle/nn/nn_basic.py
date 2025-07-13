@@ -172,8 +172,7 @@ class BatchNorm1d(Module):
 
             out = (x - running_mean) / (running_var + self.eps) ** 0.5
         else:
-            mean = _calc_mean(x, axes=axis, keep_dims=False)
-            variance = _calc_variance(x, axes=axis, keep_dims=False)
+            mean, variance = _calc_mean_and_variance(x, axis, keep_dims=False)
 
             self.running_mean = ((1 - self.momentum) * self.running_mean + self.momentum * mean)
             self.running_var = ((1 - self.momentum) * self.running_var + self.momentum * variance)
@@ -185,27 +184,21 @@ class BatchNorm1d(Module):
         return out
         ### END YOUR SOLUTION
 
-def _calc_mean(x: Tensor, axes: Optional[Tuple[int]] = None, keep_dims=True) -> Tensor:
+def _calc_mean_and_variance(x: Tensor, axes: Optional[Tuple[int]] = None, keep_dims=True) -> Tensor:
+    def _broadcast_to_x_shape(input: Tensor, match_shape: Tuple[int, ...], x_shape: Tuple[int, ...]) -> Tensor:
+        return ops.broadcast_to(ops.reshape(input, match_shape), x_shape)
     axis = axes if axes is not None else tuple(range(len(x.shape)))
     scalar = 1
     for i in axis:
         scalar *= x.shape[i]
     match_shape = tuple([1 if i in axis else n for i, n in enumerate(x.shape)])
+
+    mean = ops.summation(x, axes=axis) / scalar
+    variance = ops.summation((x - _broadcast_to_x_shape(mean, match_shape, x.shape)) ** 2, axes=axis) / scalar
     if keep_dims:
-        return ops.reshape(ops.summation(x, axes=axis) / scalar, match_shape)
+        return ops.reshape(mean, match_shape), ops.reshape(variance, match_shape)
     else:
-        return ops.summation(x, axes=axis) / scalar
-def _calc_variance(x: Tensor, axes: Optional[Tuple[int]] = None, keep_dims=True) -> Tensor:
-    axis = axes if axes is not None else tuple(range(len(x.shape)))
-    scalar = 1
-    for i in axis:
-        scalar *= x.shape[i]
-    match_shape = tuple([1 if i in axis else n for i, n in enumerate(x.shape)])
-    mean = _calc_mean(x, axes=axes, keep_dims=True)
-    if keep_dims:
-        return ops.reshape(ops.summation((x - ops.broadcast_to(mean, x.shape)) ** 2, axes=axis) / scalar, match_shape)
-    else:
-        return ops.summation((x - ops.broadcast_to(mean, x.shape)) ** 2, axes=axis) / scalar
+        return mean, variance
 
 class LayerNorm1d(Module):
     def __init__(self, dim, eps=1e-5, device=None, dtype="float32"):
@@ -224,8 +217,10 @@ class LayerNorm1d(Module):
 
         weight = ops.broadcast_to(ops.reshape(self.weight, tuple(1 for _ in range(len(x.shape) - 1)) + (self.dim,)), x.shape)
         bias = ops.broadcast_to(ops.reshape(self.bias, tuple(1 for _ in range(len(x.shape) - 1)) + (self.dim,)), x.shape)
-        mean = ops.broadcast_to(_calc_mean(x, axis), x.shape)
-        variance = ops.broadcast_to(_calc_variance(x, axis), x.shape)
+
+        mean, variance = _calc_mean_and_variance(x, axis, keep_dims=True)
+        mean, variance = ops.broadcast_to(mean, x.shape), ops.broadcast_to(variance, x.shape)
+
         return weight * ((x - mean) / ((variance + self.eps) ** 0.5)) + bias
         ### END YOUR SOLUTION
 
