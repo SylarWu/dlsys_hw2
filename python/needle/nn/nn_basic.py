@@ -160,28 +160,25 @@ class BatchNorm1d(Module):
 
     def forward(self, x: Tensor) -> Tensor:
         ### BEGIN YOUR SOLUTION
-        axis = (0,)
-        match_shape = tuple([1 if i in axis else n for i, n in enumerate(x.shape)])
+        assert x.shape[-1] == self.dim
+        batch_size, num_features = x.shape
 
-        weight = ops.broadcast_to(ops.reshape(self.weight, match_shape), x.shape)
-        bias = ops.broadcast_to(ops.reshape(self.bias, match_shape), x.shape)
+        weight = ops.broadcast_to(ops.reshape(self.weight, (1, num_features)), x.shape)
+        bias = ops.broadcast_to(ops.reshape(self.bias, (1, num_features)), x.shape)
 
         if not self.training:
-            running_mean = ops.broadcast_to(ops.reshape(self.running_mean, match_shape), x.shape)
-            running_var = ops.broadcast_to(ops.reshape(self.running_var, match_shape), x.shape)
-
-            out = (x - running_mean) / (running_var + self.eps) ** 0.5
+            running_mean = ops.broadcast_to(ops.reshape(self.running_mean, (1, num_features)), x.shape)
+            running_var = ops.broadcast_to(ops.reshape(self.running_var, (1, num_features)), x.shape)
         else:
-            mean, variance = _calc_mean_and_variance(x, axis, keep_dims=False)
+            mean, variance = _calc_mean_and_variance(x, (0,), keep_dims=False)
 
-            self.running_mean = ((1 - self.momentum) * self.running_mean + self.momentum * mean)
-            self.running_var = ((1 - self.momentum) * self.running_var + self.momentum * variance)
+            self.running_mean = (1 - self.momentum) * self.running_mean + self.momentum * mean
+            self.running_var = (1 - self.momentum) * self.running_var + self.momentum * variance
 
-            out = (weight * (x - ops.broadcast_to(ops.reshape(mean, match_shape), x.shape))
-                   /
-                   (ops.broadcast_to(ops.reshape(variance, match_shape), x.shape) + self.eps) ** 0.5 + bias)
-
-        return out
+            running_mean = ops.broadcast_to(ops.reshape(mean, (1, num_features)), x.shape)
+            running_var = ops.broadcast_to(ops.reshape(variance, (1, num_features)), x.shape)
+        out = (x - running_mean) / ((running_var + self.eps) ** 0.5)
+        return weight * out + bias
         ### END YOUR SOLUTION
 
 def _calc_mean_and_variance(x: Tensor, axes: Optional[Tuple[int]] = None, keep_dims=True) -> Tensor:
