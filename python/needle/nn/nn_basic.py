@@ -174,8 +174,8 @@ class BatchNorm1d(Module):
         else:
             mean, variance = _calc_mean_and_variance(x, (0,), keep_dims=False, unbiased=False)
 
-            self.running_mean = (1 - self.momentum) * self.running_mean + self.momentum * mean
-            self.running_var = (1 - self.momentum) * self.running_var + self.momentum * variance
+            self.running_mean.data = (1 - self.momentum) * self.running_mean.data + self.momentum * mean
+            self.running_var.data = (1 - self.momentum) * self.running_var.data + self.momentum * variance
 
             running_mean = ops.broadcast_to(ops.reshape(mean, (1, num_features)), x.shape)
             running_var = ops.broadcast_to(ops.reshape(variance, (1, num_features)), x.shape)
