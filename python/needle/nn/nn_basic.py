@@ -82,7 +82,7 @@ class Identity(Module):
 
 class Linear(Module):
     def __init__(
-        self, in_features, out_features, bias=True, device=None, dtype="float32"
+            self, in_features, out_features, bias=True, device=None, dtype="float32"
     ):
         super().__init__()
         self.in_features = in_features
@@ -121,6 +121,7 @@ class ReLU(Module):
         return ops.relu(x)
         ### END YOUR SOLUTION
 
+
 class Sequential(Module):
     def __init__(self, *modules):
         super().__init__()
@@ -144,6 +145,7 @@ class SoftmaxLoss(Module):
         activate_logits = ops.summation(ops.multiply(logits, y_one_hot), axes=(1,))
         return ops.summation(log_sum_exp - activate_logits) / batch_size
         ### END YOUR SOLUTION
+
 
 class BatchNorm1d(Module):
     def __init__(self, dim, eps=1e-5, momentum=0.1, device=None, dtype="float32"):
@@ -170,7 +172,7 @@ class BatchNorm1d(Module):
             running_mean = ops.broadcast_to(ops.reshape(self.running_mean, (1, num_features)), x.shape)
             running_var = ops.broadcast_to(ops.reshape(self.running_var, (1, num_features)), x.shape)
         else:
-            mean, variance = _calc_mean_and_variance(x, (0,), keep_dims=False)
+            mean, variance = _calc_mean_and_variance(x, (0,), keep_dims=False, unbiased=False)
 
             self.running_mean = (1 - self.momentum) * self.running_mean + self.momentum * mean
             self.running_var = (1 - self.momentum) * self.running_var + self.momentum * variance
@@ -181,9 +183,11 @@ class BatchNorm1d(Module):
         return weight * out + bias
         ### END YOUR SOLUTION
 
-def _calc_mean_and_variance(x: Tensor, axes: Optional[Tuple[int]] = None, keep_dims=True) -> Tensor:
+
+def _calc_mean_and_variance(x: Tensor, axes: Optional[Tuple[int]] = None, keep_dims=True, unbiased=False) -> Tensor:
     def _broadcast_to_x_shape(input: Tensor, match_shape: Tuple[int, ...], x_shape: Tuple[int, ...]) -> Tensor:
         return ops.broadcast_to(ops.reshape(input, match_shape), x_shape)
+
     axis = axes if axes is not None else tuple(range(len(x.shape)))
     scalar = 1
     for i in axis:
@@ -191,11 +195,16 @@ def _calc_mean_and_variance(x: Tensor, axes: Optional[Tuple[int]] = None, keep_d
     match_shape = tuple([1 if i in axis else n for i, n in enumerate(x.shape)])
 
     mean = ops.summation(x, axes=axis) / scalar
-    variance = ops.summation((x - _broadcast_to_x_shape(mean, match_shape, x.shape)) ** 2, axes=axis) / scalar
+    if scalar == 1:
+        variance = ops.summation((x - _broadcast_to_x_shape(mean, match_shape, x.shape)) ** 2, axes=axis)
+    else:
+        variance = (ops.summation((x - _broadcast_to_x_shape(mean, match_shape, x.shape)) ** 2, axes=axis)
+                    / ((scalar - 1) if unbiased else scalar))
     if keep_dims:
         return ops.reshape(mean, match_shape), ops.reshape(variance, match_shape)
     else:
         return mean, variance
+
 
 class LayerNorm1d(Module):
     def __init__(self, dim, eps=1e-5, device=None, dtype="float32"):
@@ -212,10 +221,12 @@ class LayerNorm1d(Module):
         assert self.dim == x.shape[-1], f"Error dimension: input dim is {x.shape[-1]} but got {self.dim}"
         axis = (len(x.shape) - 1,)
 
-        weight = ops.broadcast_to(ops.reshape(self.weight, tuple(1 for _ in range(len(x.shape) - 1)) + (self.dim,)), x.shape)
-        bias = ops.broadcast_to(ops.reshape(self.bias, tuple(1 for _ in range(len(x.shape) - 1)) + (self.dim,)), x.shape)
+        weight = ops.broadcast_to(ops.reshape(self.weight, tuple(1 for _ in range(len(x.shape) - 1)) + (self.dim,)),
+                                  x.shape)
+        bias = ops.broadcast_to(ops.reshape(self.bias, tuple(1 for _ in range(len(x.shape) - 1)) + (self.dim,)),
+                                x.shape)
 
-        mean, variance = _calc_mean_and_variance(x, axis, keep_dims=True)
+        mean, variance = _calc_mean_and_variance(x, axis, keep_dims=True, unbiased=False)
         mean, variance = ops.broadcast_to(mean, x.shape), ops.broadcast_to(variance, x.shape)
 
         return weight * ((x - mean) / ((variance + self.eps) ** 0.5)) + bias
