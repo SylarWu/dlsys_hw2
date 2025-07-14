@@ -24,7 +24,6 @@ class MNISTDataset(Dataset):
             print(f"image label meta info: Magic:{label_magic}, Nums:{label_nums}")
             label_buffer = label_file.read(label_nums)
             label = np.frombuffer(label_buffer, dtype=np.uint8)
-        print(data.shape)
         self.data = data
         self.label = label
         self.transforms = transforms if transforms is not None else []
