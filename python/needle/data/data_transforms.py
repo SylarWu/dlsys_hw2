@@ -1,12 +1,13 @@
 import numpy as np
 
+
 class Transform:
     def __call__(self, x):
         raise NotImplementedError
 
 
 class RandomFlipHorizontal(Transform):
-    def __init__(self, p = 0.5):
+    def __init__(self, p=0.5):
         self.p = p
 
     def __call__(self, img):
@@ -20,7 +21,10 @@ class RandomFlipHorizontal(Transform):
         """
         flip_img = np.random.rand() < self.p
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        after_transform = img
+        if flip_img:
+            after_transform = np.flip(after_transform, axis=1)
+        return after_transform
         ### END YOUR SOLUTION
 
 
@@ -36,7 +40,13 @@ class RandomCrop(Transform):
             H x W x C NAArray of cliped image
         Note: generate the image shifted by shift_x, shift_y specified below
         """
-        shift_x, shift_y = np.random.randint(low=-self.padding, high=self.padding+1, size=2)
+        shift_x, shift_y = np.random.randint(low=-self.padding, high=self.padding + 1, size=2)
         ### BEGIN YOUR SOLUTION
-        raise NotImplementedError()
+        h, w, c = img.shape
+        after_transform = np.pad(img,
+                                 ((self.padding, self.padding), (self.padding, self.padding), (0, 0)),
+                                 mode='constant')
+        start_x = self.padding + shift_x
+        start_y = self.padding + shift_y
+        return after_transform[start_x: start_x + h, start_y: start_y + w, :]
         ### END YOUR SOLUTION
