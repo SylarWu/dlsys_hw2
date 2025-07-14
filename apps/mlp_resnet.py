@@ -13,7 +13,17 @@ np.random.seed(0)
 
 def ResidualBlock(dim, hidden_dim, norm=nn.BatchNorm1d, drop_prob=0.1):
     ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
+    return nn.Sequential(
+        nn.Residual(nn.Sequential(
+            nn.Linear(dim, hidden_dim),
+            norm(hidden_dim),
+            nn.ReLU(),
+            nn.Dropout(drop_prob),
+            nn.Linear(hidden_dim, dim),
+            norm(dim)
+        )),
+        nn.ReLU(),
+    )
     ### END YOUR SOLUTION
 
 
@@ -26,7 +36,12 @@ def MLPResNet(
     drop_prob=0.1,
 ):
     ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
+    return nn.Sequential(
+        nn.Linear(dim, hidden_dim),
+        nn.ReLU(),
+        *[ResidualBlock(hidden_dim, hidden_dim // 2, norm=norm, drop_prob=drop_prob) for _ in range(num_blocks)],
+        nn.Linear(hidden_dim, num_classes),
+    )
     ### END YOUR SOLUTION
 
 
