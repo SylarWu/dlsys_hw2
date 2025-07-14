@@ -78,7 +78,7 @@ class Adam(Optimizer):
                 self.v[i] = ndl.init.zeros(*p.shape, dtype=p.dtype).data
 
             # 计算梯度（包含weight decay）
-            grad = ndl.Tensor(p.grad.data + self.weight_decay * p.data, dtype=p.dtype).data
+            grad = p.grad.data + self.weight_decay * p.data
 
             # 更新动量
             self.m[i].data = self.beta1 * self.m[i].data + (1 - self.beta1) * grad.data
